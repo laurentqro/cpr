@@ -55,7 +55,9 @@ make_move(Name, Move) ->
   receive
     {ok, Move} ->
       io:format("~p: Moved to position ~p\n", [Name, Move]),
-      loop(Move)
+      loop(Move);
+    {error, Reason} ->
+      io:format("Failed to move into position ~p: ~p\n", [Move, Reason])
   after 1000 ->
     timeout
   end.
