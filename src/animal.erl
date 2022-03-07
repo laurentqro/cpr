@@ -1,13 +1,12 @@
 -module(animal).
 
 -export([start_link/2, move/2, sleep/2, stop/1]).
--export([loop/1, go_to_sleep/2, print_move/2]).
+-export([init/2, loop/1, go_to_sleep/2, make_move/2]).
 
 %%% Client API
-start_link(Name, {X, Y} = Location) when X >= 0, Y >= 0 ->
-  Pid = spawn(?MODULE, loop, [Location]),
+start_link(Name, Location) ->
+  Pid = spawn(?MODULE, init, [Name, Location]),
   register(Name, Pid),
-  io:format("~p: Started in position ~p\n", [Name, Location]),
   {ok, Pid}.
 
 move(Name, Move) ->
@@ -23,28 +22,20 @@ stop(Name) ->
   ok.
 
 %%% Server functions
+init(Name, Location) ->
+  make_move(Name, Location),
+  ok.
+
 loop({X, Y} = Location) ->
   receive
     {move, up, Name} ->
-      NewLocation = {X, Y + 1},
-      print_move(Name, NewLocation),
-      loop(NewLocation),
-      ok;
+      make_move(Name, {X, Y + 1});
     {move, down, Name} ->
-      NewLocation = {X, Y - 1},
-      print_move(Name, NewLocation),
-      loop(NewLocation),
-      ok;
+      make_move(Name, {X, Y - 1});
     {move, right, Name} ->
-      NewLocation = {X + 1, Y},
-      print_move(Name, NewLocation),
-      loop(NewLocation),
-      ok;
+      make_move(Name, {X + 1, Y});
     {move, left, Name} ->
-      NewLocation = {X - 1, Y},
-      print_move(Name, NewLocation),
-      loop(NewLocation),
-      ok;
+      make_move(Name, {X - 1, Y});
     {sleep, Time } ->
       go_to_sleep(Location, Time);
     stop ->
@@ -59,5 +50,12 @@ go_to_sleep(Location, Time) ->
       loop(Location)
   end.
 
-print_move(Name, Location) ->
-  io:format("~p: Moved to position ~p\n", [Name, Location]).
+make_move(Name, Move) ->
+  world:move(Name, Move),
+  receive
+    {ok, Move} ->
+      io:format("~p: Moved to position ~p\n", [Name, Move]),
+      loop(Move)
+  after 1000 ->
+    timeout
+  end.
