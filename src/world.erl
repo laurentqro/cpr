@@ -1,7 +1,7 @@
 -module(world).
 
 -export([start_link/1, get/1, move/2, delete/1]).
--export([init/1, loop/1, validate_move/2, make_move/2]).
+-export([init/1, loop/1, validate_move/2, make_move/2, validate_positive_integers/2, validate_is_within_bounds/2, validate_has_no_animal/1]).
 
 %%% Client API
 start_link(FileName) ->
@@ -37,29 +37,29 @@ delete(AnimalName) ->
 
 %% Server
 init(State) ->
-  {GridDimensions, _Teleporters, _Obstacles} = State,
+  {Grid, _Teleporters, _Obstacles} = State,
   ets:new(animals, [set, named_table]),
-  loop(GridDimensions).
+  loop(Grid).
 
-loop(GridDimensions) ->
+loop(Grid) ->
   receive
     {From, validate_move, Move} ->
-      case validate_move(Move, GridDimensions) of
+      case validate_move(Move, Grid) of
         ok ->
           From ! ok;
         {error, Reason} ->
           From ! {error, Reason}
       end,
-      loop(GridDimensions);
+      loop(Grid);
     {move, AnimalName, Move} ->
       make_move(AnimalName, Move),
-      loop(GridDimensions);
+      loop(Grid);
     {From, get, AnimalName} ->
       From ! {ok, ets:lookup(animals, AnimalName)},
-      loop(GridDimensions);
+      loop(Grid);
     {delete, AnimalName} ->
       ets:delete(animals, AnimalName),
-      loop(GridDimensions)
+      loop(Grid)
   end.
 
 make_move(AnimalName, Move) ->
@@ -73,14 +73,26 @@ make_move(AnimalName, Move) ->
       AnimalName ! {ok, Move}
   end.
 
-validate_move({X,Y} = _Move, {P,Q} = _GridDimensions) ->
-  if
-    (X > P) or (Y > Q) ->
-      {error, out_of_bounds};
-    (X < 0) or (Y < 0) ->
-      {error, must_be_positive_integer};
-    (is_integer(X) == false) or (is_integer(Y) == false) ->
-      {error, must_be_positive_integer};
-    true ->
-      ok
+validate_move(Move, Grid) ->
+  case validate_positive_integers(Move, Grid) of
+    ok -> ok;
+    {error, Reason} -> {error, Reason}
+  end.
+
+validate_positive_integers({X,Y} = Move, Grid) ->
+  case (is_integer(X)) and (is_integer(Y)) of
+    true  -> validate_is_within_bounds(Move, Grid);
+    false -> {error, negative_integer}
+  end.
+
+validate_is_within_bounds({X,Y} = Move, {P,Q} = _Grid) ->
+  case (X =< P) and (Y =< Q) of
+    true  -> validate_has_no_animal(Move);
+    false -> {error, out_of_bounds}
+  end.
+
+validate_has_no_animal(Location) ->
+  case ets:match(animals, {'$0', Location}) of
+    [] -> ok;
+    [_Animal] -> {error, location_has_animal}
   end.
