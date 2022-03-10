@@ -1,7 +1,7 @@
 -module(world).
 
 -export([start_link/1, get/1, move/2, delete/1]).
--export([init/1, loop/1, validate_move/2]).
+-export([init/1, loop/1, validate_move/2, make_move/2]).
 
 %%% Client API
 start_link(FileName) ->
@@ -45,31 +45,32 @@ loop(GridDimensions) ->
   receive
     {From, validate_move, Move} ->
       case validate_move(Move, GridDimensions) of
-        ok  ->
-          From ! ok,
-          loop(GridDimensions);
+        ok ->
+          From ! ok;
         {error, Reason} ->
-          From ! {error, Reason},
-          loop(GridDimensions)
-      end;
+          From ! {error, Reason}
+      end,
+      loop(GridDimensions);
     {move, AnimalName, Move} ->
-      Result = ets:lookup(animals, AnimalName),
-      case Result of
-        [] ->
-          ets:insert(animals, {AnimalName, Move}),
-          AnimalName ! {ok, Move},
-          loop(GridDimensions);
-        [{AnimalName, _Location}] ->
-          ets:update_element(animals, AnimalName, {2, Move}),
-          AnimalName ! {ok, Move},
-          loop(GridDimensions)
-      end;
+      make_move(AnimalName, Move),
+      loop(GridDimensions);
     {From, get, AnimalName} ->
       From ! {ok, ets:lookup(animals, AnimalName)},
       loop(GridDimensions);
     {delete, AnimalName} ->
       ets:delete(animals, AnimalName),
       loop(GridDimensions)
+  end.
+
+make_move(AnimalName, Move) ->
+  Result = ets:lookup(animals, AnimalName),
+  case Result of
+    [] ->
+      ets:insert(animals, {AnimalName, Move}),
+      AnimalName ! {ok, Move};
+    [{AnimalName, _Location}] ->
+      ets:update_element(animals, AnimalName, {2, Move}),
+      AnimalName ! {ok, Move}
   end.
 
 validate_move({X,Y} = _Move, {P,Q} = _GridDimensions) ->
