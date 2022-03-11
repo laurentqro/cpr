@@ -1,7 +1,22 @@
 -module(world).
 
--export([start_link/1, get/1, move/2, delete/1]).
--export([init/1, loop/1, validate_move/2, make_move/2, validate_positive_integers/2, validate_is_within_bounds/2, validate_has_no_animal/1]).
+-export([start_link/1,
+         get/1,
+         move/2,
+         delete/1
+        ]).
+
+-export([init/1,
+         loop/1,
+         validate_move/2,
+         make_move/2,
+         load_obstacles/1,
+         load_obstacle/1,
+         validate_positive_integers/2,
+         validate_is_within_bounds/2,
+         validate_has_no_animal/1,
+         validate_has_no_obstacle/1
+        ]).
 
 %%% Client API
 start_link(FileName) ->
@@ -36,10 +51,17 @@ delete(AnimalName) ->
   ok.
 
 %% Server
-init(State) ->
-  {Grid, _Teleporters, _Obstacles} = State,
+init({Grid, _Teleporters, Obstacles}) ->
   ets:new(animals, [set, named_table]),
+  ets:new(obstacles, [set, named_table]),
+  load_obstacles(Obstacles),
   loop(Grid).
+
+load_obstacles(Obstacles) ->
+  [load_obstacle(O) || O <- Obstacles].
+
+load_obstacle({Obstacle, Locations}) ->
+  [ets:insert(obstacles, {L, O}) || L <- Locations, O <- [Obstacle]].
 
 loop(Grid) ->
   receive
@@ -92,7 +114,13 @@ validate_is_within_bounds({X,Y} = Move, {P,Q} = _Grid) ->
   end.
 
 validate_has_no_animal(Location) ->
-  case ets:match(animals, {'$0', Location}) of
-    [] -> ok;
+  case ets:match_object(animals, {'$0', Location}) of
+    [] -> validate_has_no_obstacle(Location);
     [_Animal] -> {error, location_has_animal}
+  end.
+
+validate_has_no_obstacle(Location) ->
+  case ets:match_object(obstacles, {Location, '$1'}) of
+    [] -> ok;
+    [_Obstacle] -> {error, location_has_obstacle}
   end.

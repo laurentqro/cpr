@@ -5,8 +5,7 @@
 
 %%% Client API
 start_link(Name, Location) ->
-  Pid = spawn(?MODULE, init, [Name, Location]),
-  register(Name, Pid),
+  register(Name, Pid = spawn_link(?MODULE, init, [Name, Location])),
   {ok, Pid}.
 
 move(Name, Move) ->
