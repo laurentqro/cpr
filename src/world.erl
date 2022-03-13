@@ -89,10 +89,10 @@ make_move(AnimalName, Move) ->
   case Result of
     [] ->
       ets:insert(animals, {AnimalName, Move}),
-      AnimalName ! {ok, Move};
+      AnimalName ! {made_move, Move};
     [{AnimalName, _Location}] ->
       ets:update_element(animals, AnimalName, {2, Move}),
-      AnimalName ! {ok, Move}
+      AnimalName ! {made_move, Move}
   end.
 
 validate_move(Move, Grid) ->

@@ -1,62 +1,50 @@
 -module(animal).
-
--export([start_link/2, move/2, sleep/2, stop/1]).
--export([init/2, loop/1, go_to_sleep/2, make_move/2]).
+-behaviour(gen_server).
+-compile(export_all).
 
 %%% Client API
 start_link(Name, Location) ->
-  register(Name, Pid = spawn_link(?MODULE, init, [Name, Location])),
-  {ok, Pid}.
+  gen_server:start_link({local, Name}, ?MODULE, {Name, Location}, []).
 
-move(Name, Move) ->
-  Name ! {move, Move, Name},
-  ok.
+move(Name, Direction) ->
+  gen_server:call(Name, {move, Name, Direction}).
 
 sleep(Name, Time) ->
-  Name ! {sleep, Time},
-  ok.
+  gen_server:cast(Name, {sleep, Time}).
 
 stop(Name) ->
-  Name ! stop,
-  ok.
+  gen_server:call(Name, stop).
 
 %%% Server functions
-init(Name, Location) ->
-  make_move(Name, Location),
-  ok.
+init({Name, Location}) ->
+  io:format("Name: ~p, Location: ~p~n", [Name, Location]),
+  {ok, {Name, Location}}.
 
-loop({X, Y} = Location) ->
-  receive
-    {move, up, Name} ->
-      make_move(Name, {X, Y + 1});
-    {move, down, Name} ->
-      make_move(Name, {X, Y - 1});
-    {move, right, Name} ->
-      make_move(Name, {X + 1, Y});
-    {move, left, Name} ->
-      make_move(Name, {X - 1, Y});
-    {sleep, Time } ->
-      go_to_sleep(Location, Time);
-    stop ->
-      ok
-  end.
+handle_info({made_move, NewLocation}, {Name, _Location}) ->
+  {noreply, {Name, NewLocation}};
 
-go_to_sleep(Location, Time) ->
+handle_info({error, Reason}, {Name, Location}) ->
+  {stop, Reason, {Name, Location}}.
+
+handle_call({move, Name, Direction}, _From, {Name, {X,Y}}) ->
+  NewLocation = case Direction of
+    up    -> {X, Y + 1};
+    down  -> {X, Y - 1};
+    right -> {X + 1, Y};
+    left  -> {X - 1, Y}
+  end,
+
+  world:move(Name, NewLocation),
+  {reply, io:format("~p moved into ~p~n", [Name, NewLocation]), {Name, NewLocation}};
+
+handle_call(stop, _From, {Name, _Location}) ->
+  {stop, normal, io:format("~p successfully stopped.", [Name])}.
+
+handle_cast({sleep, Time}, {Name, Location}) ->
   io:format("Sleeping ~p milliseconds ...\n", [Time]),
-  receive
-  after
-    Time ->
-      loop(Location)
-  end.
+  timer:sleep(Time),
+  io:format("Awake!~n"),
+  {noreply, {Name, Location}}.
 
-make_move(Name, Move) ->
-  world:move(Name, Move),
-  receive
-    {ok, Move} ->
-      io:format("~p: Moved to position ~p\n", [Name, Move]),
-      loop(Move);
-    {error, Reason} ->
-      io:format("Failed to move into position ~p: ~p\n", [Move, Reason])
-  after 1000 ->
-    timeout
-  end.
+terminate(_Reason, {Name, _Location}) ->
+  world:delete(Name).
