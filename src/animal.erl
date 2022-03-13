@@ -18,8 +18,12 @@ stop(Name) ->
 %%% Server functions
 init([Name, Location]) ->
   process_flag(trap_exit, true),
-  world:move(Name, Location),
-  {ok, {Name, Location}}.
+  case world:move(Name, Location) of
+    [] ->
+      ignore;
+    [NewState] ->
+      {ok, NewState}
+  end.
 
 handle_cast({move, Direction}, {Name, {X,Y}}) ->
   Move = case Direction of
