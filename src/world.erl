@@ -1,99 +1,52 @@
 -module(world).
-
--export([start_link/1,
-         get/1,
-         move/2,
-         delete/1
-        ]).
-
--export([init/1,
-         loop/1,
-         validate_move/2,
-         make_move/2,
-         load_obstacles/1,
-         load_obstacle/1,
-         validate_positive_integers/2,
-         validate_is_within_bounds/2,
-         validate_has_no_animal/1,
-         validate_has_no_obstacle/1
-        ]).
+-behaviour(gen_server).
+-compile(export_all).
 
 %%% Client API
 start_link(FileName) ->
-  {ok, [State]} = file:consult(FileName),
-  Pid = spawn(?MODULE, init, [State]),
-  register(?MODULE, Pid),
-  {ok, Pid}.
+  gen_server:start_link({local, ?MODULE}, ?MODULE, FileName, []).
 
 get(AnimalName) ->
-  ?MODULE ! {self(), get, AnimalName},
-  receive
-    {ok, [{_AnimalName, Location}]} -> {ok, Location};
-    {ok, []} -> {error, not_found}
-  after 1000 ->
-          timeout
-  end.
+  gen_server:call(?MODULE, {get, AnimalName}).
 
 move(AnimalName, Move) ->
-  ?MODULE ! {self(), validate_move, Move},
-
-  receive
-    ok ->
-      ?MODULE ! {move, AnimalName, Move};
-    {error, Reason} ->
-      AnimalName ! {error, Reason}
-  after 1000 ->
-          timeout
-  end.
+  gen_server:call(?MODULE, {move, AnimalName, Move}).
 
 delete(AnimalName) ->
-  ?MODULE ! {delete, AnimalName},
-  ok.
+  gen_server:cast(?MODULE, {delete, AnimalName}).
 
-%% Server
-init({Grid, _Teleporters, Obstacles}) ->
+%%% Server functions
+init(FileName) ->
+  {ok, [State]} = file:consult(FileName),
+  {_Grid, _Teleporters, Obstacles} = State,
   ets:new(animals, [set, named_table]),
   ets:new(obstacles, [set, named_table]),
   load_obstacles(Obstacles),
-  loop(Grid).
+  {ok, State}.
 
+handle_call({get, AnimalName}, _From, State) ->
+  {reply, ets:lookup(animals, AnimalName), State};
+
+handle_call({move, AnimalName, Move}, _From, State) ->
+  {Grid, _, _} = State,
+  case validate_move(Move, Grid) of
+    ok ->
+      make_move(AnimalName, Move),
+      {reply, Move, State};
+    {error, Reason} ->
+      {stop, Reason, State}
+  end.
+
+handle_cast({delete, AnimalName}, State) ->
+  ets:delete(animals, AnimalName),
+  {noreply, State}.
+
+%%% private functions
 load_obstacles(Obstacles) ->
   [load_obstacle(O) || O <- Obstacles].
 
 load_obstacle({Obstacle, Locations}) ->
   [ets:insert(obstacles, {L, O}) || L <- Locations, O <- [Obstacle]].
-
-loop(Grid) ->
-  receive
-    {From, validate_move, Move} ->
-      case validate_move(Move, Grid) of
-        ok ->
-          From ! ok;
-        {error, Reason} ->
-          From ! {error, Reason}
-      end,
-      loop(Grid);
-    {move, AnimalName, Move} ->
-      make_move(AnimalName, Move),
-      loop(Grid);
-    {From, get, AnimalName} ->
-      From ! {ok, ets:lookup(animals, AnimalName)},
-      loop(Grid);
-    {delete, AnimalName} ->
-      ets:delete(animals, AnimalName),
-      loop(Grid)
-  end.
-
-make_move(AnimalName, Move) ->
-  Result = ets:lookup(animals, AnimalName),
-  case Result of
-    [] ->
-      ets:insert(animals, {AnimalName, Move}),
-      AnimalName ! {made_move, Move};
-    [{AnimalName, _Location}] ->
-      ets:update_element(animals, AnimalName, {2, Move}),
-      AnimalName ! {made_move, Move}
-  end.
 
 validate_move(Move, Grid) ->
   case validate_positive_integers(Move, Grid) of
@@ -123,4 +76,12 @@ validate_has_no_obstacle(Location) ->
   case ets:match_object(obstacles, {Location, '$1'}) of
     [] -> ok;
     [_Obstacle] -> {error, location_has_obstacle}
+  end.
+
+make_move(AnimalName, Move) ->
+  case ets:lookup(animals, AnimalName) of
+    [] ->
+      ets:insert(animals, {AnimalName, Move});
+    [{AnimalName, _Location}] ->
+      ets:update_element(animals, AnimalName, {2, Move})
   end.
