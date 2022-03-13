@@ -7,11 +7,11 @@ start_link() ->
 
 stop() -> exit(whereis(?MODULE), shutdown).
 
-init(_Args) ->
-  SupFlags   = #{strategy => simple_one_for_one, intensity => 0, period => 1},
+init(_) ->
+  SupFlags   = #{strategy => simple_one_for_one, intensity => 3, period => 60},
   ChildSpecs = [#{id => animal,
                   start => {animal, start_link, []},
-                  restart => permanent,
+                  restart => transient,
                   shutdown => 2000,
                   type => worker,
                   modules => [animal]}],
