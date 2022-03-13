@@ -4,44 +4,53 @@
 
 %%% Client API
 start_link(Name, Location) ->
-  gen_server:start_link({local, Name}, ?MODULE, {Name, Location}, []).
+  gen_server:start_link({local, Name}, ?MODULE, [Name, Location], []).
 
 move(Name, Direction) ->
-  gen_server:call(Name, {move, Direction}).
+  gen_server:cast(Name, {move, Direction}).
 
 sleep(Name, Time) ->
   gen_server:cast(Name, {sleep, Time}).
 
 stop(Name) ->
-  gen_server:call(Name, {stop, normal}).
+  gen_server:cast(Name, stop).
 
 %%% Server functions
-init({Name, Location}) ->
+init([Name, Location]) ->
+  process_flag(trap_exit, true),
   world:move(Name, Location),
-  io:format("~p: Moved into position ~p~n", [Name, Location]),
   {ok, {Name, Location}}.
 
-handle_call({reply, Reply, _State}, _From, {Name, _Location}) ->
-  {reply, Reply, {Name, Reply}};
-
-handle_call({stop, Reason}, _From, {Name, Location}) ->
-  {stop, Reason, {Name, Location}};
-
-handle_call({move, Direction}, _From, {Name, {X,Y}}) ->
-  NewLocation = case Direction of
+handle_cast({move, Direction}, {Name, {X,Y}}) ->
+  Move = case Direction of
     up    -> {X, Y + 1};
     down  -> {X, Y - 1};
     right -> {X + 1, Y};
     left  -> {X - 1, Y}
   end,
-  world:move(Name, NewLocation),
-  {reply, io:format("~p moved into ~p~n", [Name, NewLocation]), {Name, NewLocation}}.
+  [NewState] = world:move(Name, Move),
+  {noreply, NewState};
 
-handle_cast({sleep, Time}, {Name, Location}) ->
+handle_cast({sleep, Time}, State) ->
   io:format("Sleeping ~p milliseconds ...\n", [Time]),
   timer:sleep(Time),
   io:format("Awake!~n"),
-  {noreply, {Name, Location}}.
+  {noreply, State};
 
-terminate(_Reason, {Name, _Location}) ->
-  world:delete(Name).
+handle_cast(stop, State) ->
+  {stop, normal, State}.
+
+terminate(shutdown, {Name, _Location}) ->
+  io:format("~p shutting down ...", [Name]),
+  world:delete(Name),
+  ok;
+
+terminate(normal, {Name, _Location}) ->
+  io:format("~p stopping ...", [Name]),
+  world:delete(Name),
+  ok;
+
+terminate(Reason, {Name, _Location}) ->
+  io:format("~p terminating: ~p.", [Name, Reason]),
+  world:delete(Name),
+  ok.

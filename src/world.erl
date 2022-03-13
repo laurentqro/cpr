@@ -32,9 +32,10 @@ handle_call({move, AnimalName, Move}, _From, State) ->
   case validate_move(Move, Grid) of
     ok ->
       make_move(AnimalName, Move),
-      {reply, Move, State};
+      {reply, ets:lookup(animals, AnimalName), State};
     {error, Reason} ->
-      {stop, Reason, State}
+      io:format("Could not move into ~p: ~p.~n", [Move, Reason]),
+      {reply, ets:lookup(animals, AnimalName), State}
   end.
 
 handle_cast({delete, AnimalName}, State) ->
@@ -49,15 +50,21 @@ load_obstacle({Obstacle, Locations}) ->
   [ets:insert(obstacles, {L, O}) || L <- Locations, O <- [Obstacle]].
 
 validate_move(Move, Grid) ->
-  case validate_positive_integers(Move, Grid) of
+  case validate_positive_numbers(Move, Grid) of
     ok -> ok;
     {error, Reason} -> {error, Reason}
   end.
 
-validate_positive_integers({X,Y} = Move, Grid) ->
+validate_positive_numbers({X,Y} = Move, Grid) ->
+  case (X >= 0) and (Y >= 0) of
+    true -> validate_integers(Move, Grid);
+    false -> {error, must_be_positive}
+  end.
+
+validate_integers({X,Y} = Move, Grid) ->
   case (is_integer(X)) and (is_integer(Y)) of
     true  -> validate_is_within_bounds(Move, Grid);
-    false -> {error, negative_integer}
+    false -> {error, must_be_an_integer}
   end.
 
 validate_is_within_bounds({X,Y} = Move, {P,Q} = _Grid) ->
@@ -81,7 +88,9 @@ validate_has_no_obstacle(Location) ->
 make_move(AnimalName, Move) ->
   case ets:lookup(animals, AnimalName) of
     [] ->
+      io:format("~p placed into ~p~n", [AnimalName, Move]),
       ets:insert(animals, {AnimalName, Move});
     [{AnimalName, _Location}] ->
+      io:format("~p moved into ~p~n", [AnimalName, Move]),
       ets:update_element(animals, AnimalName, {2, Move})
   end.
