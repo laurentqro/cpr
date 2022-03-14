@@ -18,12 +18,16 @@ stop(Name) ->
 %%% Server functions
 init([Name, Location]) ->
   process_flag(trap_exit, true),
+  init(world:get(Name), [Name, Location]).
+
+init([], [Name, Location] ) ->
   case world:move(Name, Location) of
-    [] ->
-      ignore;
-    [NewState] ->
-      {ok, NewState}
-  end.
+    [NewState] -> {ok, NewState};
+    [] -> ignore
+  end;
+
+init([State], [_Name, _Location] ) ->
+  {ok, State}.
 
 handle_cast({move, Direction}, {Name, {X,Y}}) ->
   Move = case Direction of
@@ -46,15 +50,11 @@ handle_cast(stop, State) ->
 
 terminate(shutdown, {Name, _Location}) ->
   io:format("~p shutting down ...", [Name]),
-  world:delete(Name),
-  ok;
+  world:delete(Name);
 
 terminate(normal, {Name, _Location}) ->
   io:format("~p stopping ...", [Name]),
-  world:delete(Name),
-  ok;
+  world:delete(Name);
 
 terminate(Reason, {Name, _Location}) ->
-  io:format("~p terminating: ~p.", [Name, Reason]),
-  world:delete(Name),
-  ok.
+  io:format("~p terminating: ~p.", [Name, Reason]).
