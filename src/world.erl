@@ -18,37 +18,28 @@ delete(AnimalName) ->
 %%% Server functions
 init(FileName) ->
   {ok, [State]} = file:consult(FileName),
-  {_Grid, _Teleporters, Obstacles} = State,
-  ets:new(animals, [set, named_table]),
-  ets:new(obstacles, [set, named_table]),
-  load_obstacles(Obstacles),
+  db:init(State),
   {ok, State}.
 
 handle_call({get, AnimalName}, _From, State) ->
-  {reply, ets:lookup(animals, AnimalName), State};
+  {reply, db:get_animal(AnimalName), State};
 
 handle_call({move, AnimalName, Move}, _From, State) ->
   {Grid, _, _} = State,
   case validate_move(Move, Grid) of
     ok ->
       make_move(AnimalName, Move),
-      {reply, ets:lookup(animals, AnimalName), State};
+      {reply, db:get_animal(AnimalName), State};
     {error, Reason} ->
       io:format("Could not move into ~p: ~p.~n", [Move, Reason]),
-      {reply, ets:lookup(animals, AnimalName), State}
+      {reply, db:get_animal(AnimalName), State}
   end.
 
 handle_cast({delete, AnimalName}, State) ->
-  ets:delete(animals, AnimalName),
+  db:delete_animal(AnimalName),
   {noreply, State}.
 
 %%% private functions
-load_obstacles(Obstacles) ->
-  [load_obstacle(O) || O <- Obstacles].
-
-load_obstacle({Obstacle, Locations}) ->
-  [ets:insert(obstacles, {L, O}) || L <- Locations, O <- [Obstacle]].
-
 validate_move(Move, Grid) ->
   case validate_positive_numbers(Move, Grid) of
     ok -> ok;
@@ -74,23 +65,23 @@ validate_is_within_bounds({X,Y} = Move, {P,Q} = _Grid) ->
   end.
 
 validate_has_no_animal(Location) ->
-  case ets:match_object(animals, {'$0', Location}) of
+  case db:animal_at_location(Location) of
     [] -> validate_has_no_obstacle(Location);
     [_Animal] -> {error, location_has_animal}
   end.
 
 validate_has_no_obstacle(Location) ->
-  case ets:match_object(obstacles, {Location, '$1'}) of
+  case db:obstacle_at_location(Location) of
     [] -> ok;
     [_Obstacle] -> {error, location_has_obstacle}
   end.
 
 make_move(AnimalName, Move) ->
-  case ets:lookup(animals, AnimalName) of
+  case db:get_animal(AnimalName) of
     [] ->
       io:format("~p placed into ~p~n", [AnimalName, Move]),
-      ets:insert(animals, {AnimalName, Move});
+      db:add_animal(AnimalName, Move);
     [{AnimalName, _Location}] ->
       io:format("~p moved into ~p~n", [AnimalName, Move]),
-      ets:update_element(animals, AnimalName, {2, Move})
+      db:update_animal(AnimalName, Move)
   end.
