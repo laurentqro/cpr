@@ -1,5 +1,4 @@
 -module(world).
--include("animal.hrl").
 -behaviour(gen_server).
 -compile(export_all).
 
@@ -82,7 +81,7 @@ make_move(AnimalName, Move) ->
     [] ->
       io:format("~p placed into ~p~n", [AnimalName, Move]),
       db:add_animal(AnimalName, Move);
-    [#animal{name=AnimalName, location=_}] ->
+    [{AnimalName, _}] ->
       io:format("~p moved into ~p~n", [AnimalName, Move]),
       db:update_animal(AnimalName, Move)
   end.

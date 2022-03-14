@@ -1,5 +1,5 @@
 -module(db).
--include("animal.hrl").
+-record(animal, {name, location}).
 -record(obstacle, {location, name}).
 -compile(export_all).
 
@@ -10,14 +10,18 @@ init(State) ->
   load_obstacles(Obstacles).
 
 get_animal(Name) ->
-  ets:lookup(animals, Name).
+  case ets:lookup(animals, Name) of
+    [] -> [];
+    [#animal{name=Name, location=Location}] -> [{Name, Location}]
+  end.
 
 add_animal(Name, Location) ->
   ets:insert(animals, #animal{name=Name, location=Location}).
 
 update_animal(Name, Location) ->
   delete_animal(Name),
-  add_animal(Name, Location).
+  add_animal(Name, Location),
+  {Name, Location}.
 
 delete_animal(Name) ->
   ets:match_delete(animals, #animal{name=Name}).

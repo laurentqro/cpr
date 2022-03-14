@@ -1,1 +1,0 @@
--record(animal, {name, location}).
