@@ -1,4 +1,5 @@
 -module(animal).
+-include("animal.hrl").
 -behaviour(gen_server).
 -compile(export_all).
 
@@ -29,7 +30,7 @@ init([], [Name, Location] ) ->
 init([State], [_Name, _Location] ) ->
   {ok, State}.
 
-handle_cast({move, Direction}, {Name, {X,Y}}) ->
+handle_cast({move, Direction}, #animal{name=Name, location={X,Y}}) ->
   Move = case Direction of
     up    -> {X, Y + 1};
     down  -> {X, Y - 1};
@@ -48,13 +49,13 @@ handle_cast({sleep, Time}, State) ->
 handle_cast(stop, State) ->
   {stop, normal, State}.
 
-terminate(shutdown, {Name, _Location}) ->
+terminate(shutdown, #animal{name=Name, location=_}) ->
   io:format("~p shutting down ...", [Name]),
   world:delete(Name);
 
-terminate(normal, {Name, _Location}) ->
+terminate(normal, #animal{name=Name, location=_}) ->
   io:format("~p stopping ...", [Name]),
   world:delete(Name);
 
-terminate(Reason, {Name, _Location}) ->
+terminate(Reason, #animal{name=Name, location=_}) ->
   io:format("~p terminating: ~p.", [Name, Reason]).
