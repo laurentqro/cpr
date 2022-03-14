@@ -1,6 +1,6 @@
 -module(animal_sup).
 -behaviour(supervisor).
--export([start_link/0, init/1, stop/0, add_animal/2, remove_animal/2]).
+-export([start_link/0, init/1, stop/0, add_animal/2, remove_animal/1]).
 
 start_link() ->
   supervisor:start_link({local,?MODULE}, ?MODULE, []).
@@ -11,7 +11,7 @@ init(_) ->
   SupFlags   = #{strategy => simple_one_for_one, intensity => 5, period => 5000},
   ChildSpecs = [#{id => animal,
                   start => {animal, start_link, []},
-                  restart => permanent,
+                  restart => transient,
                   shutdown => 2000,
                   type => worker,
                   modules => [animal]}],
@@ -20,5 +20,5 @@ init(_) ->
 add_animal(AnimalName, Location) ->
   supervisor:start_child(whereis(?MODULE), [AnimalName, Location]).
 
-remove_animal(SupPid, AnimalName) ->
-  supervisor:terminate_child(SupPid, whereis(AnimalName)).
+remove_animal(AnimalName) ->
+  supervisor:terminate_child(whereis(?MODULE), whereis(AnimalName)).

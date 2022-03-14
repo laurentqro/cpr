@@ -28,12 +28,13 @@ handle_call({move, AnimalName, Move}, _From, State) ->
   {Grid, _, _} = State,
   case validate_move(Move, Grid) of
     ok ->
-      make_move(AnimalName, Move),
-      {reply, db:get_animal(AnimalName), State};
+      make_move(AnimalName, Move);
+    {teleport, {Node, Destination}} ->
+      teleport(Node, AnimalName, Destination);
     {error, Reason} ->
-      io:format("Could not move into ~p: ~p.~n", [Move, Reason]),
-      {reply, db:get_animal(AnimalName), State}
-  end.
+      io:format("Could not move into ~p: ~p.~n", [Move, Reason])
+  end,
+  {reply, db:get_animal(AnimalName), State}.
 
 handle_cast({delete, AnimalName}, State) ->
   db:delete_animal(AnimalName),
@@ -42,8 +43,12 @@ handle_cast({delete, AnimalName}, State) ->
 %%% private functions
 validate_move(Move, Grid) ->
   case validate_positive_numbers(Move, Grid) of
-    ok -> ok;
-    {error, Reason} -> {error, Reason}
+    ok ->
+      ok;
+    {teleport, Target} ->
+      {teleport, Target};
+    {error, Reason} ->
+      {error, Reason}
   end.
 
 validate_positive_numbers({X,Y} = Move, Grid) ->
@@ -72,8 +77,15 @@ validate_has_no_animal(Location) ->
 
 validate_has_no_obstacle(Location) ->
   case db:obstacle_at_location(Location) of
-    [] -> ok;
+    [] -> validate_teleporter(Location);
     [_Obstacle] -> {error, location_has_obstacle}
+  end.
+
+validate_teleporter(Move) ->
+  case db:teleporter_at_location(Move) of
+   [{Node, _, Destination}] ->
+      {teleport, {Node, Destination}};
+    [] -> ok
   end.
 
 make_move(AnimalName, Move) ->
@@ -85,3 +97,9 @@ make_move(AnimalName, Move) ->
       io:format("~p moved into ~p~n", [AnimalName, Move]),
       db:update_animal(AnimalName, Move)
   end.
+
+teleport(Node, AnimalName, Destination) ->
+  io:format("+++> TELEPORT!"),
+  spawn(Node, animal_sup, add_animal, [AnimalName, Destination]),
+  spawn(animal_sup, remove_animal, [AnimalName]),
+  ok.
