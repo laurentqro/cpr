@@ -1,6 +1,6 @@
 -module(animal_sup).
 -behaviour(supervisor).
--export([start_link/0, init/1, stop/0, add_animal/2, remove_animal/1]).
+-export([start_link/0, init/1, stop/0, add_animal/2, remove_animal/1, revive_animals/0]).
 
 start_link() ->
   supervisor:start_link({local,?MODULE}, ?MODULE, []).
@@ -22,3 +22,9 @@ add_animal(AnimalName, Location) ->
 
 remove_animal(AnimalName) ->
   supervisor:terminate_child(whereis(?MODULE), whereis(AnimalName)).
+
+revive_animals() ->
+  lists:foreach(fun({animals, AnimalName, Location}) ->
+                    add_animal(AnimalName, Location)
+                end, db:get_animals()),
+  ok.

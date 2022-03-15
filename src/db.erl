@@ -15,6 +15,9 @@ get_animal(Name) ->
     [#animals{name=Name, location=Location}] -> [{Name, Location}]
   end.
 
+get_animals() ->
+  mnesia:dirty_match_object(animals, mnesia:table_info(animals, wild_pattern)).
+
 add_animal(Name, Location) ->
   mnesia:dirty_write(#animals{name=Name, location=Location}).
 

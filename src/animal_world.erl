@@ -29,7 +29,8 @@ uninstall(Nodes) ->
 start(normal, _) ->
   mnesia:wait_for_tables([animals, obstacles, teleporters], 5000),
   ChildList = [{world, start_link, ["node1_config.txt"]}, {animal_sup, start_link, []}],
-  world_sup:start_link(ChildList).
+  world_sup:start_link(ChildList),
+  spawn(animal_sup, revive_animals, []).
 
 stop(_) ->
   world_sup:stop().
