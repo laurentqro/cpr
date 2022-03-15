@@ -52,7 +52,7 @@ validate_move(Move, Grid) ->
   end.
 
 validate_positive_numbers({X,Y} = Move, Grid) ->
-  case (X >= 0) and (Y >= 0) of
+  case (X > 0) and (Y > 0) of
     true -> validate_integers(Move, Grid);
     false -> {error, must_be_positive}
   end.
